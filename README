@@ -1,0 +1,65 @@
+- docker compose 방법
+docker-compose up -d mysql zookeeper kafka
+
+
+- 토픽 생성 방법
+docker-compose run --rm kafka kafka-topics --create --topic quickstart-avro-offsets --partitions 1 --replication-factor 1 --if-not-exists --zookeeper zookeeper:32181 --config cleanup.policy=compact
+docker-compose run --rm kafka kafka-topics --create --topic quickstart-avro-config --partitions 1 --replication-factor 1 --if-not-exists --zookeeper zookeeper:32181 --config cleanup.policy=compact
+docker-compose run --rm kafka kafka-topics --create --topic quickstart-avro-status --partitions 1 --replication-factor 1 --if-not-exists --zookeeper zookeeper:32181 --config cleanup.policy=compact
+
+- kafka-connector 대한 docker compose 방법
+docker-compose up -d kafka-connector-mysql
+
+- JDBC 소스 커넥터 생성 
+curl -X POST \
+  -H "Content-Type: application/json" \
+  --data '{ "name": "quickstart-jdbc-source", "config": { "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector", "tasks.max": 1, "connection.url": "jdbc:mysql://mysql:3306/connect_test", "connection.user": "root", "connection.password": "test", "mode": "incrementing", "incrementing.column.name": "id", "timestamp.column.name": "modified", "topic.prefix": "quickstart-jdbc-", "poll.interval.ms": 1000 } }' \
+  http://localhost:28083/connectors
+
+- 커넥터 작동 확인 방법
+curl -s -X GET http://localhost:28083/connectors/quickstart-jdbc-source/status
+''' 
+작동 결과 예시
+{"name":"quickstart-jdbc-source","connector":{"state":"RUNNING","worker_id":"localhost:28083"},"tasks":[{"id":0,"state":"RUNNING","worker_id":"localhost:28083"}],"type":"source"}%
+'''
+
+- kafka 컨슈머 실행
+docker-compose run --rm kafka kafka-console-consumer --bootstrap-server kafka:29092  --topic quickstart-jdbc-test --from-beginning
+'''
+작동 결과 예시
+{"schema":{"type":"struct","fields":[{"type":"int64","optional":false,"field":"id"},{"type":"string","optional":true,"field":"name"},{"type":"string","optional":true,"field":"email"},{"type":"string","optional":true,"field":"department"},{"type":"int64","optional":false,"name":"org.apache.kafka.connect.data.Timestamp","version":1,"field":"modified"}],"optional":false,"name":"test"},"payload":{"id":18,"name":"bob","email":"bob@abc.com","department":"sales","modified":1606418867000}}
+{"schema":{"type":"struct","fields":[{"type":"int64","optional":false,"field":"id"},{"type":"string","optional":true,"field":"name"},{"type":"string","optional":true,"field":"email"},{"type":"string","optional":true,"field":"department"},{"type":"int64","optional":false,"name":"org.apache.kafka.connect.data.Timestamp","version":1,"field":"modified"}],"optional":false,"name":"test"},"payload":{"id":19,"name":"bob","email":"bob@abc.com","department":"sales","modified":1606418867000}}
+{"schema":{"type":"struct","fields":[{"type":"int64","optional":false,"field":"id"},{"type":"string","optional":true,"field":"name"},{"type":"string","optional":true,"field":"email"},{"type":"string","optional":true,"field":"department"},{"type":"int64","optional":false,"name":"org.apache.kafka.connect.data.Timestamp","version":1,"field":"modified"}],"optional":false,"name":"test"},"payload":{"id":20,"name":"bob","email":"bob@abc.com","department":"sales","modified":1606418867000}}
+^CProcessed a total of 10 messages
+'''
+
+- 종료
+docker-compose down
+
+-----------------------
+
+- Confluent JDBC 플러그인 다운로드
+https://www.confluent.io/hub/confluentinc/kafka-connect-jdbc
+
+- MySQL 커넥터 드라이버 다운로드
+wget https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-8.0.22.tar.gz
+
+---------------
+
+"""
+Use 'docker scan' to run Snyk tests against images to find vulnerabilities and learn how to fix them
+해결) export DOCKER_SCAN_SUGGEST=false
+"""
+
+"""
+no matching manifest for linux/arm64/v8 in the manifest list entries - M1 버전의 docker를 사용시 발생하는 에러
+해결) platform: linux/x86_64
+"""
+
+
+"""
+ERROR org.apache.kafka.common.errors.InvalidReplicationFactorException: Replication factor: 1 larger than available brokers: 0.
+ (kafka.admin.TopicCommand$)
+
+시도) openssl s_client -connect localhost:28083 -msg
+"""
