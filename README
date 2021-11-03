@@ -3,7 +3,7 @@ docker-compose up -d mysql zookeeper kafka
 
 
 - 토픽 생성 방법
-docker-compose run --rm kafka kafka-topics --create --topic quickstart-avro-offsets --partitions 1 --replication-factor 1 --if-not-exists --zookeeper zookeeper:32181 --config cleanup.policy=compact
+docker-compose run --rm kafka kafka-topics --create --topic topic --partitions 1 --replication-factor 1 --if-not-exists --zookeeper zookeeper:32181 --config cleanup.policy=compact
 docker-compose run --rm kafka kafka-topics --create --topic quickstart-avro-config --partitions 1 --replication-factor 1 --if-not-exists --zookeeper zookeeper:32181 --config cleanup.policy=compact
 docker-compose run --rm kafka kafka-topics --create --topic quickstart-avro-status --partitions 1 --replication-factor 1 --if-not-exists --zookeeper zookeeper:32181 --config cleanup.policy=compact
 
@@ -11,20 +11,18 @@ docker-compose run --rm kafka kafka-topics --create --topic quickstart-avro-stat
 docker-compose up -d kafka-connector-mysql
 
 - JDBC 소스 커넥터 생성 
-curl -X POST \
-  -H "Content-Type: application/json" \
-  --data '{ "name": "quickstart-jdbc-source", "config": { "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector", "tasks.max": 1, "connection.url": "jdbc:mysql://mysql:3306/connect_test", "connection.user": "root", "connection.password": "test", "mode": "incrementing", "incrementing.column.name": "id", "timestamp.column.name": "modified", "topic.prefix": "quickstart-jdbc-", "poll.interval.ms": 1000 } }' \
-  http://localhost:28083/connectors
+curl -X POST -H "Content-Type: application/json" --data '{ "name": "quickstart", "config": { "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector", "tasks.max": 1, "connection.url": "jdbc:mysql://mysql:3306/connect_test", "connection.user": "root", "connection.password": "test", "mode": "incrementing", "incrementing.column.name": "id", "timestamp.column.name": "modified", "topic.prefix": "quickstart-jdbc", "table.whitelist":"employees", "poll.interval.ms": 1000 } }' http://127.0.0.1:28083/connectors
 
 - 커넥터 작동 확인 방법
-curl -s -X GET http://localhost:28083/connectors/quickstart-jdbc-source/status
+curl -s -X GET http://127.0.0.1:28083/connectors/quickstart/status
 ''' 
 작동 결과 예시
-{"name":"quickstart-jdbc-source","connector":{"state":"RUNNING","worker_id":"localhost:28083"},"tasks":[{"id":0,"state":"RUNNING","worker_id":"localhost:28083"}],"type":"source"}%
+{"name":"quickstart-jdbc-source-2","connector":{"state":"RUNNING","worker_id":"localhost:28083"},"tasks":[{"id":0,"state":"RUNNING","worker_id":"localhost:28083"}],"type":"source"}%
 '''
 
+
 - kafka 컨슈머 실행
-docker-compose run --rm kafka kafka-console-consumer --bootstrap-server kafka:29092  --topic quickstart-jdbc-test --from-beginning
+docker-compose run --rm kafka kafka-console-consumer --bootstrap-server kafka:29092  --topic quickstart --from-beginning
 '''
 작동 결과 예시
 {"schema":{"type":"struct","fields":[{"type":"int64","optional":false,"field":"id"},{"type":"string","optional":true,"field":"name"},{"type":"string","optional":true,"field":"email"},{"type":"string","optional":true,"field":"department"},{"type":"int64","optional":false,"name":"org.apache.kafka.connect.data.Timestamp","version":1,"field":"modified"}],"optional":false,"name":"test"},"payload":{"id":18,"name":"bob","email":"bob@abc.com","department":"sales","modified":1606418867000}}
@@ -44,7 +42,7 @@ https://www.confluent.io/hub/confluentinc/kafka-connect-jdbc
 - MySQL 커넥터 드라이버 다운로드
 wget https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-8.0.22.tar.gz
 
----------------
+-----------------------
 
 """
 Use 'docker scan' to run Snyk tests against images to find vulnerabilities and learn how to fix them
@@ -57,9 +55,19 @@ no matching manifest for linux/arm64/v8 in the manifest list entries - M1 버전
 """
 
 
-"""
-ERROR org.apache.kafka.common.errors.InvalidReplicationFactorException: Replication factor: 1 larger than available brokers: 0.
- (kafka.admin.TopicCommand$)
+'''
+ConnectException: java.sql.SQLSyntaxErrorException: Unknown column 'sys.sys_config.id' in 'where clause'
+원인) 소스 커넥터 생성 시 화이트리스트 지정
 
-시도) openssl s_client -connect localhost:28083 -msg
+실제 결과 (트러블 슈팅 전)
+{"name":"quickstart-jdbc","connector":{"state":"RUNNING","worker_id":"localhost:28083"},"tasks":[{"id":0,"state":"FAILED","worker_id":"localhost:28083","trace":"org.apache.kafka.connect.errors.ConnectException: java.sql.SQLSyntaxErrorException: Unknown column 'sys.sys_config.id' in 'where clause'\n\tat io.confluent.connect.jdbc.source.JdbcSourceTask.poll(JdbcSourceTask.java:417)\n\tat org.apache.kafka.connect.runtime.WorkerSourceTask.poll(WorkerSourceTask.java:296)\n\tat org.apache.kafka.connect.runtime.WorkerSourceTask.execute(WorkerSourceTask.java:253)\n\tat org.apache.kafka.connect.runtime.WorkerTask.doRun(WorkerTask.java:188)\n\tat org.apache.kafka.connect.runtime.WorkerTask.run(WorkerTask.java:237)\n\tat java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)\n\tat java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)\n\tat java.base/java.lang.Thread.run(Thread.java:829)\nCaused by: java.sql.SQLSyntaxErrorException: Unknown column 'sys.sys_config.id' in 'where clause'\n\tat com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:120)\n\tat com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:97)\n\tat com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)\n\tat com.mysql.cj.jdbc.ClientPreparedStatement.executeInternal(ClientPreparedStatement.java:953)\n\tat com.mysql.cj.jdbc.ClientPreparedStatement.executeQuery(ClientPreparedStatement.java:1003)\n\tat io.confluent.connect.jdbc.source.TimestampIncrementingTableQuerier.executeQuery(TimestampIncrementingTableQuerier.java:206)\n\tat io.confluent.connect.jdbc.source.TimestampIncrementingTableQuerier.maybeStartQuery(TimestampIncrementingTableQuerier.java:160)\n\tat io.confluent.connect.jdbc.source.JdbcSourceTask.poll(JdbcSourceTask.java:379)\n\t... 9 more\n"}],"type":"source"}%   
+
+실제 최종 결과
+{"name":"quickstart","connector":{"state":"RUNNING","worker_id":"localhost:28083"},"tasks":[],"type":"source"}%    
+'''
+
+"""
+[2021-11-02 23:52:47,148] WARN [Consumer clientId=consumer-1, groupId=console-consumer-80258] Error while fetching metadata with correlation id 6 : {quickstart=LEADER_NOT_AVAILABLE} (org.apache.kafka.clients.NetworkClient)
+원인) test 토픽에 대한 리더가 선출되지 않았기 때문에 발생
+-해결중
 """
