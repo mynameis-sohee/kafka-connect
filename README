@@ -1,5 +1,6 @@
 - docker compose 방법
-docker-compose up -d mysql zookeeper kafka
+docker-compose up -d mysql 
+docker-compose up -d zookeeper kafka
 
 
 - 토픽 생성 방법
